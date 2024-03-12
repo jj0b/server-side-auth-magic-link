@@ -1,36 +1,55 @@
-This is a [Next.js](https://nextjs.org/) project bootstrapped with [`create-next-app`](https://github.com/vercel/next.js/tree/canary/packages/create-next-app).
+The purpose of this project is to demonstrate the issue where when using a Magic Link in a Supabase local development setup, the `sb-localhost-auth-token` cookie does not get set.
 
-## Getting Started
+This project was setup following the instructions on the [Setting Up Server-Side Auth For Next.js](https://supabase.com/docs/guides/auth/server-side/nextjs) page in the Supabase docs.
 
-First, run the development server:
+After confirming that everything worked with regular signup and login, I updated the app to use a Magic Link. I receive the Magic Link in Inbucket, and everything seems to be working except that the `sb-localhost-auth-token` cookie does not get set.
+
+## Test it yourself
+
+Start `Supabase` with:
+
+```
+supabase start
+```
+
+Copy anon key you get back after starting Supabase and put it into an `.env.local` file with the following:
+
+```
+NEXT_PUBLIC_SUPABASE_URL=http://localhost:54321
+NEXT_PUBLIC_SUPABASE_ANON_KEY=<your_supabase_anon_key>
+```
+
+Run the development server:
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Open [http://localhost:3000](http://localhost:3000) to confirm the app is running.
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+Now go to [http://localhost:3000/login](http://localhost:3000/login), enter any email (doesn't matter as the Magic Link will be sent to Inbucket, not your email) and click the Magic Link button.
 
-This project uses [`next/font`](https://nextjs.org/docs/basic-features/font-optimization) to automatically optimize and load Inter, a custom Google Font.
+Go to Inbucket at [http://127.0.0.1:54324](http://127.0.0.1:54324) and follow the Magic Link.
 
-## Learn More
+Now that you are back in the app, open the inspector to the Application tab, then view the cookies under the storage section. You will notice that there is no `sb-localhost-auth-token` cookie set.
 
-To learn more about Next.js, take a look at the following resources:
+Attempt to open [http://localhost:3000/private](http://localhost:3000/private) and notice that you can't view that page. This is the code for `app/private/page.tsx`:
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+```typescript
+import { redirect } from 'next/navigation';
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js/) - your feedback and contributions are welcome!
+import { createClient } from '@/utils/supabase/server';
 
-## Deploy on Vercel
+export default async function PrivatePage() {
+  const supabase = createClient();
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+  const { data, error } = await supabase.auth.getUser();
+  if (error || !data?.user) {
+    redirect('/');
+  }
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/deployment) for more details.
+  return <p>Hello {data.user.email}</p>;
+}
+```
+
+Without the `sb-localhost-auth-token` cookie set `supabase.auth.getUser()` cannot get any data, so the user is redirected to `/`.
